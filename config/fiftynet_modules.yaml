@@ -1,0 +1,5 @@
+blocks:
+  - type: FFTNetBlock
+    name: block_0
+  - type: FFTNetBlock
+    name: block_1
