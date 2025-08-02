@@ -1,11 +1,10 @@
 import argparse
-import json
 import sys
 import torch
 import matplotlib.pyplot as plt
 
-from model import FFTNet
 from fftnet.utils import storage
+from fftnet.utils.config import build_model
 
 
 def plot_embedding_spectrum(embeddings: torch.Tensor) -> None:
@@ -40,9 +39,9 @@ def main() -> None:
             print(f"Model {args.model} not found", file=sys.stderr)
             return
     else:
-        with open("config/fiftynet_config.json") as f:
-            cfg = json.load(f)
-        model = FFTNet(**{k: cfg[k] for k in ("vocab_size", "dim", "num_blocks")})
+        model, cfg = build_model(
+            "config/fiftynet_config.json", "config/fiftynet_modules.yaml"
+        )
 
     input_ids = torch.randint(0, cfg["vocab_size"], (1, 8))
     embeddings = model.embedding(input_ids)

@@ -8,7 +8,7 @@ from torch import nn
 from torch.utils.data import Dataset, DataLoader
 from transformers import AutoModelForCausalLM
 
-from model import FFTNet
+from fftnet.utils.config import build_model
 from fftnet.utils.storage import save_model, load_model
 
 
@@ -109,9 +109,9 @@ def main() -> None:
     if args.resume:
         model, cfg = load_model(Path("weights") / args.resume)
     else:
-        with open("config/fiftynet_config.json") as f:
-            cfg = json.load(f)
-        model = FFTNet(**{k: cfg[k] for k in ("vocab_size", "dim", "num_blocks")})
+        model, cfg = build_model(
+            "config/fiftynet_config.json", "config/fiftynet_modules.yaml"
+        )
 
     teacher = AutoModelForCausalLM.from_pretrained(args.teacher_model)
     dataset = DummyWikiDataset(seq_len=args.seq_len)
