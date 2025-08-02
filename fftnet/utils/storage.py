@@ -6,7 +6,7 @@ import torch
 from torch import nn
 from safetensors.torch import save_file, safe_open
 
-from model import FFTNet
+from .config import build_model_from_config
 
 
 def _prepare_state_for_save(state: dict) -> tuple[dict, list[str]]:
@@ -58,6 +58,6 @@ def load_model(path: str) -> Tuple[nn.Module, dict]:
         for k in f.keys():
             tensors[k] = f.get_tensor(k)
     tensors = _restore_complex(tensors, complex_keys)
-    model = FFTNet(**{k: config[k] for k in ('vocab_size', 'dim', 'num_blocks')})
+    model = build_model_from_config(config)
     model.load_state_dict(tensors)
     return model, config

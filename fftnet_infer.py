@@ -1,5 +1,4 @@
 import argparse
-import json
 import os
 import sys
 from pathlib import Path
@@ -35,6 +34,7 @@ except Exception:  # pragma: no cover
 
 from model import FFTNet
 from fftnet.utils import storage
+from fftnet.utils.config import build_model
 
 
 def _tokenize(prompt: str) -> list[int]:
@@ -73,9 +73,9 @@ def main() -> None:
     if args.model:
         model, cfg = storage.load_model(Path("weights") / args.model)
     else:
-        with open("config/fiftynet_config.json") as f:
-            cfg = json.load(f)
-        model = FFTNet(**{k: cfg[k] for k in ("vocab_size", "dim", "num_blocks")})
+        model, cfg = build_model(
+            "config/fiftynet_config.json", "config/fiftynet_modules.yaml"
+        )
 
     tokens = _tokenize(args.prompt)
     input_ids = torch.tensor(tokens, dtype=torch.long).unsqueeze(0)
