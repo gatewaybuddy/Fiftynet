@@ -8,7 +8,7 @@ import torch
 # Allow importing utility modules from the scripts directory
 sys.path.append(os.path.join(os.path.dirname(__file__), 'scripts'))
 
-from train_fresh import DummyWikiDataset  # type: ignore
+from tokenizer import SimpleTokenizer
 try:
     from main import plot_embedding_spectrum as fft_visualizer  # type: ignore
 except Exception:  # pragma: no cover
@@ -34,18 +34,16 @@ except Exception:  # pragma: no cover
 
 from model import FFTNet
 from fftnet.utils import storage
-from fftnet.utils.config import build_model
+from fftnet.utils.config import load_config, build_model_from_config
 
 
-def _tokenize(prompt: str) -> list[int]:
-    """Convert prompt words to token IDs."""
-    mapping = DummyWikiDataset.WORD_TO_ID
-    return [mapping.get(w, 0) for w in prompt.split()]
+def _tokenize(tokenizer: SimpleTokenizer, prompt: str) -> list[int]:
+    """Convert prompt text to token IDs."""
+    return tokenizer.encode(prompt)
 
 
-def _decode(tokens: torch.Tensor) -> str:
-    vocab = DummyWikiDataset.VOCAB
-    return " ".join(vocab[t.item()] for t in tokens)
+def _decode(tokenizer: SimpleTokenizer, tokens: torch.Tensor) -> str:
+    return tokenizer.decode(tokens.tolist())
 
 
 @torch.no_grad()
@@ -68,28 +66,30 @@ def main() -> None:
     parser.add_argument("--max-new-tokens", type=int, default=5, help="Number of tokens to generate")
     parser.add_argument("--mode", choices=["text", "logits", "spectrum"], default="text")
     parser.add_argument("--top-k", type=int, default=5, help="Top-k predictions for logits mode")
+    parser.add_argument("--tokenizer-path", default="tokenizer.json", help="Tokenizer file")
     args = parser.parse_args()
+
+    tokenizer = SimpleTokenizer.load(args.tokenizer_path)
 
     if args.model:
         model, cfg = storage.load_model(Path("weights") / args.model)
     else:
-        model, cfg = build_model(
-            "config/fiftynet_config.json", "config/fiftynet_modules.yaml"
-        )
+        cfg = load_config("config/fiftynet_config.json", "config/fiftynet_modules.yaml")
+        cfg["vocab_size"] = len(tokenizer)
+        model = build_model_from_config(cfg)
 
-    tokens = _tokenize(args.prompt)
+    tokens = _tokenize(tokenizer, args.prompt)
     input_ids = torch.tensor(tokens, dtype=torch.long).unsqueeze(0)
     generated, logits = generate(model, input_ids, args.max_new_tokens)
 
     if args.mode == "text":
-        print(_decode(generated[0]))
+        print(_decode(tokenizer, generated[0]))
     elif args.mode == "logits":
         last_logits = logits[0, -1]
         k = min(args.top_k, last_logits.size(0))
         values, indices = torch.topk(last_logits, k)
-        vocab = DummyWikiDataset.VOCAB
         for idx, val in zip(indices.tolist(), values.tolist()):
-            word = vocab[idx] if idx < len(vocab) else str(idx)
+            word = tokenizer.decode([idx])
             print(f"{word}: {val:.4f}")
     else:  # spectrum
         embeddings = model.embedding(generated)
