@@ -3,6 +3,16 @@ FFT-Net (Hybrid Transformer with Frequency Processing)
 
 A minimal research model that mixes tokens in the frequency domain using rotary position embeddings and learnable spectral filters.
 
+## Features
+
+- ComplexRoPE rotary positional encoding in the complex domain.
+- Learnable frequency filtering via NeuralFourierOperator.
+- FFTNet blocks that combine FFT/IFFT with MLP layers.
+- Scripts for training, distillation, evaluation, and model management.
+- Weight I/O using `safetensors` with complex parameter support.
+
+See [FEATURES.md](FEATURES.md) for a more detailed list.
+
 ## Installation
 
 1. (Optional) create and activate a virtual environment.
