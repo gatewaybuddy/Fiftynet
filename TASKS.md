@@ -11,9 +11,9 @@
 - [x] Test suite covering core components and visualizations.
 
 ## TODO
-- [ ] Replace `DummyWikiDataset` with modular data loaders and real corpora.
-- [x] Provide tokenizer and vocabulary management utilities.
-- [x] Extend configuration loading to parse block definitions from YAML.
+ - [x] Replace `DummyWikiDataset` with modular data loaders and real corpora.
+ - [x] Provide tokenizer and vocabulary management utilities.
+ - [x] Extend configuration loading to parse block definitions from YAML.
 - [ ] Enhance training loops with mixed precision, checkpointing, and early stopping.
 - [ ] Package inference as a CLI/API and distribute example pretrained weights.
 - [ ] Add benchmarks and performance regression tests.

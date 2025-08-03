@@ -7,44 +7,11 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
-from fftnet.utils.config import build_model
+from model import FFTNet
+from fftnet.data import TextFileDataset
+from fftnet.utils.config import load_config, build_model_from_config
 from fftnet.utils.storage import save_model, load_model
-
-
-class DummyWikiDataset(Dataset):
-    """Simple token dataset built from a tiny Wikipedia-like text."""
-
-    VOCAB = [
-        "the",
-        "quick",
-        "brown",
-        "fox",
-        "jumps",
-        "over",
-        "lazy",
-        "dog",
-        "lorem",
-        "ipsum",
-    ]
-
-    WORD_TO_ID = {w: i for i, w in enumerate(VOCAB)}
-
-    def __init__(self, seq_len: int) -> None:
-        sample_text = (
-            "the quick brown fox jumps over lazy dog lorem ipsum " * 100
-        ).strip()
-        tokens = [self.WORD_TO_ID[w] for w in sample_text.split()]
-        self.seq_len = seq_len
-        self.seqs = [tokens[i : i + seq_len + 1] for i in range(len(tokens) - seq_len)]
-
-    def __len__(self) -> int:
-        return len(self.seqs)
-
-    def __getitem__(self, idx: int):
-        seq = self.seqs[idx]
-        x = torch.tensor(seq[:-1], dtype=torch.long)
-        y = torch.tensor(seq[1:], dtype=torch.long)
-        return x, y
+from tokenizer import SimpleTokenizer
 
 
 def train(model: FFTNet, dataset: Dataset, cfg: dict, args: argparse.Namespace) -> None:
@@ -101,16 +68,33 @@ def main() -> None:
     parser.add_argument("--seq-len", type=int, default=8)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--save-name", default="trained", help="Version name to save")
+    parser.add_argument("--data-path", required=True, help="Path to training text file")
+    parser.add_argument(
+        "--tokenizer-path",
+        default="tokenizer.json",
+        help="Path to load/save the tokenizer",
+    )
+    parser.add_argument("--vocab-size", type=int, default=5000, help="Tokenizer vocab size")
     args = parser.parse_args()
 
     if args.resume:
         model, cfg = load_model(Path("weights") / args.resume)
+        tokenizer = SimpleTokenizer.load(args.tokenizer_path)
     else:
-        model, cfg = build_model(
-            "config/fiftynet_config.json", "config/fiftynet_modules.yaml"
-        )
+        tokenizer_path = Path(args.tokenizer_path)
+        if tokenizer_path.exists():
+            tokenizer = SimpleTokenizer.load(str(tokenizer_path))
+        else:
+            corpus = Path(args.data_path).read_text(encoding="utf-8")
+            tokenizer = SimpleTokenizer.train_from_iterator([corpus], vocab_size=args.vocab_size)
+            tokenizer_path.parent.mkdir(parents=True, exist_ok=True)
+            tokenizer.save(str(tokenizer_path))
 
-    dataset = DummyWikiDataset(seq_len=args.seq_len)
+        cfg = load_config("config/fiftynet_config.json", "config/fiftynet_modules.yaml")
+        cfg["vocab_size"] = len(tokenizer)
+        model = build_model_from_config(cfg)
+
+    dataset = TextFileDataset(args.data_path, tokenizer, seq_len=args.seq_len)
     train(model, dataset, cfg, args)
 
     save_path = Path("weights") / args.save_name
