@@ -81,9 +81,7 @@ def distill(
 
             epoch_loss = total / (len(train_loader.dataset))
             epoch_acc = correct / count if count else 0.0
-            print(
-                f"Epoch {epoch}: distill_loss={epoch_loss:.4f} acc={epoch_acc:.4f}"
-            )
+            print(f"Epoch {epoch}: distill_loss={epoch_loss:.4f} acc={epoch_acc:.4f}")
 
             if val_loader is not None:
                 model.eval()
@@ -105,9 +103,7 @@ def distill(
 
                 val_loss = v_total / len(val_loader.dataset)
                 val_acc = v_correct / v_count if v_count else 0.0
-                print(
-                    f"Validation: distill_loss={val_loss:.4f} acc={val_acc:.4f}"
-                )
+                print(f"Validation: distill_loss={val_loss:.4f} acc={val_acc:.4f}")
                 val_entry = {
                     "step": step,
                     "epoch": epoch,
@@ -188,6 +184,7 @@ def main() -> None:
 
     teacher = AutoModelForCausalLM.from_pretrained(args.teacher_model)
     dataset = TextFileDataset(args.data_path, tokenizer, seq_len=args.seq_len)
+
     val_size = int(len(dataset) * args.val_split)
     train_size = len(dataset) - val_size
     train_ds, val_ds = random_split(dataset, [train_size, val_size])
