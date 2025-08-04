@@ -5,7 +5,8 @@ from pathlib import Path
 
 import torch
 from torch import nn
-from torch.utils.data import DataLoader, Dataset
+from torch.cuda.amp import GradScaler, autocast
+from torch.utils.data import DataLoader, Dataset, random_split
 from transformers import AutoModelForCausalLM
 
 from model import FFTNet
@@ -15,7 +16,14 @@ from fftnet.utils.storage import load_model, save_model
 from tokenizer import SimpleTokenizer
 
 
-def distill(model: FFTNet, teacher: AutoModelForCausalLM, dataset: Dataset, cfg: dict, args: argparse.Namespace) -> None:
+def distill(
+    model: FFTNet,
+    teacher: AutoModelForCausalLM,
+    train_ds: Dataset,
+    val_ds: Dataset | None,
+    cfg: dict,
+    args: argparse.Namespace,
+) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     teacher.to(device)
@@ -23,30 +31,39 @@ def distill(model: FFTNet, teacher: AutoModelForCausalLM, dataset: Dataset, cfg:
     for p in teacher.parameters():
         p.requires_grad = False
 
-    loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
+    val_loader = (
+        DataLoader(val_ds, batch_size=args.batch_size) if val_ds is not None else None
+    )
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     loss_fn = nn.MSELoss()
+    scaler = GradScaler(enabled=args.mixed_precision)
 
     log_path = Path("logs/distill_run.jsonl")
     log_path.parent.mkdir(parents=True, exist_ok=True)
     step = 0
+    best_val = float("inf")
+    patience_cntr = 0
 
     with log_path.open("w") as log_file:
         for epoch in range(1, args.epochs + 1):
+            model.train()
             total = 0.0
             correct = 0
             count = 0
-            for batch in loader:
+            for batch in train_loader:
                 if isinstance(batch, (list, tuple)):
                     batch = batch[0]
                 batch = batch.to(device)
                 opt.zero_grad()
-                with torch.no_grad():
-                    teach_logits = teacher(batch).logits[..., : cfg["vocab_size"]]
-                stud_logits = model(batch)
-                loss = loss_fn(stud_logits, teach_logits)
-                loss.backward()
-                opt.step()
+                with autocast(enabled=args.mixed_precision):
+                    with torch.no_grad():
+                        teach_logits = teacher(batch).logits[..., : cfg["vocab_size"]]
+                    stud_logits = model(batch)
+                    loss = loss_fn(stud_logits, teach_logits)
+                scaler.scale(loss).backward()
+                scaler.step(opt)
+                scaler.update()
                 total += loss.item() * batch.size(0)
 
                 preds = stud_logits.argmax(dim=-1)
@@ -64,9 +81,56 @@ def distill(model: FFTNet, teacher: AutoModelForCausalLM, dataset: Dataset, cfg:
                 }
                 log_file.write(json.dumps(entry) + "\n")
 
-            epoch_loss = total / (len(loader.dataset))
+            epoch_loss = total / (len(train_loader.dataset))
             epoch_acc = correct / count if count else 0.0
-            print(f"Epoch {epoch}: distill_loss={epoch_loss:.4f} acc={epoch_acc:.4f}")
+            print(
+                f"Epoch {epoch}: distill_loss={epoch_loss:.4f} acc={epoch_acc:.4f}"
+            )
+
+            if val_loader is not None:
+                model.eval()
+                v_total = 0.0
+                v_correct = 0
+                v_count = 0
+                with torch.no_grad():
+                    for batch in val_loader:
+                        if isinstance(batch, (list, tuple)):
+                            batch = batch[0]
+                        batch = batch.to(device)
+                        with autocast(enabled=args.mixed_precision):
+                            teach_logits = teacher(batch).logits[..., : cfg["vocab_size"]]
+                            stud_logits = model(batch)
+                            v_loss = loss_fn(stud_logits, teach_logits)
+                        v_total += v_loss.item() * batch.size(0)
+                        preds = stud_logits.argmax(dim=-1)
+                        teach_preds = teach_logits.argmax(dim=-1)
+                        v_correct += (preds == teach_preds).sum().item()
+                        v_count += batch.numel()
+
+                val_loss = v_total / len(val_loader.dataset)
+                val_acc = v_correct / v_count if v_count else 0.0
+                print(
+                    f"Validation: distill_loss={val_loss:.4f} acc={val_acc:.4f}"
+                )
+                val_entry = {
+                    "step": step,
+                    "epoch": epoch,
+                    "val_loss": val_loss,
+                    "val_accuracy": val_acc,
+                    "timestamp": time.time(),
+                }
+                log_file.write(json.dumps(val_entry) + "\n")
+
+                if val_loss < best_val:
+                    best_val = val_loss
+                    patience_cntr = 0
+                    if args.checkpoint_path is not None:
+                        save_model(model, str(args.checkpoint_path), cfg)
+                else:
+                    patience_cntr += 1
+                    if args.patience and patience_cntr >= args.patience:
+                        print("Early stopping triggered")
+                        break
 
 
 def main() -> None:
@@ -83,6 +147,28 @@ def main() -> None:
         "--tokenizer-path", default="tokenizer.json", help="Path to load/save the tokenizer"
     )
     parser.add_argument("--vocab-size", type=int, default=5000)
+    parser.add_argument(
+        "--mixed-precision",
+        action="store_true",
+        help="Enable mixed precision training",
+    )
+    parser.add_argument(
+        "--val-split",
+        type=float,
+        default=0.1,
+        help="Fraction of data reserved for validation",
+    )
+    parser.add_argument(
+        "--patience",
+        type=int,
+        default=0,
+        help="Early stopping patience (0 to disable)",
+    )
+    parser.add_argument(
+        "--checkpoint-path",
+        default=None,
+        help="Where to save best model checkpoint",
+    )
     args = parser.parse_args()
 
     if args.resume:
@@ -106,8 +192,16 @@ def main() -> None:
 
     teacher = AutoModelForCausalLM.from_pretrained(args.teacher_model)
     dataset = TextFileDataset(args.data_path, tokenizer, seq_len=args.seq_len)
+    val_size = int(len(dataset) * args.val_split)
+    train_size = len(dataset) - val_size
+    train_ds, val_ds = random_split(dataset, [train_size, val_size])
 
-    distill(model, teacher, dataset, cfg, args)
+    if args.checkpoint_path is None:
+        args.checkpoint_path = Path("weights") / f"{args.save_name}_best"
+    else:
+        args.checkpoint_path = Path(args.checkpoint_path)
+
+    distill(model, teacher, train_ds, val_ds, cfg, args)
 
     save_path = Path("weights") / args.save_name
     save_model(model, str(save_path), cfg)
