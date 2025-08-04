@@ -51,23 +51,23 @@ def distill(
             total = 0.0
             correct = 0
             count = 0
-            for x, _ in train_loader:
-                x = x.to(device)
+            for inputs, _ in train_loader:
+                inputs = inputs.to(device)
                 opt.zero_grad()
                 with autocast(enabled=args.mixed_precision):
                     with torch.no_grad():
-                        teach_logits = teacher(x).logits[..., : cfg["vocab_size"]]
-                    stud_logits = model(x)
+                        teach_logits = teacher(inputs).logits[..., : cfg["vocab_size"]]
+                    stud_logits = model(inputs)
                     loss = loss_fn(stud_logits, teach_logits)
                 scaler.scale(loss).backward()
                 scaler.step(opt)
                 scaler.update()
-                total += loss.item() * x.size(0)
+                total += loss.item() * inputs.size(0)
 
                 preds = stud_logits.argmax(dim=-1)
                 teach_preds = teach_logits.argmax(dim=-1)
                 correct += (preds == teach_preds).sum().item()
-                count += x.numel()
+                count += inputs.numel()
 
                 step += 1
                 entry = {
@@ -91,17 +91,17 @@ def distill(
                 v_correct = 0
                 v_count = 0
                 with torch.no_grad():
-                    for x, _ in val_loader:
-                        x = x.to(device)
+                    for inputs, _ in val_loader:
+                        inputs = inputs.to(device)
                         with autocast(enabled=args.mixed_precision):
-                            teach_logits = teacher(x).logits[..., : cfg["vocab_size"]]
-                            stud_logits = model(x)
+                            teach_logits = teacher(inputs).logits[..., : cfg["vocab_size"]]
+                            stud_logits = model(inputs)
                             v_loss = loss_fn(stud_logits, teach_logits)
-                        v_total += v_loss.item() * x.size(0)
+                        v_total += v_loss.item() * inputs.size(0)
                         preds = stud_logits.argmax(dim=-1)
                         teach_preds = teach_logits.argmax(dim=-1)
                         v_correct += (preds == teach_preds).sum().item()
-                        v_count += x.numel()
+                        v_count += inputs.numel()
 
                 val_loss = v_total / len(val_loader.dataset)
                 val_acc = v_correct / v_count if v_count else 0.0
