@@ -5,10 +5,12 @@ from typing import Tuple
 
 import matplotlib.pyplot as plt
 import torch
+from torch.utils.data import DataLoader
 
 from model import FFTNet
-from scripts.train_fresh import DummyWikiDataset
+from fftnet.data import TextFileDataset
 from fftnet.utils.storage import load_model
+from tokenizer import SimpleTokenizer
 
 
 
@@ -27,17 +29,19 @@ def load_losses(path: Path) -> Tuple[list[int], list[float]]:
             steps.append(rec.get("step", len(steps) + 1))
             losses.append(rec.get("loss", 0.0))
     return steps, losses
-
-
-def average_logit_spectrum(model: FFTNet, dataset: DummyWikiDataset, num_batches: int = 5) -> torch.Tensor:
+def average_logit_spectrum(
+    model: FFTNet, dataset: TextFileDataset, num_batches: int = 5
+) -> torch.Tensor:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-    loader = torch.utils.data.DataLoader(dataset, batch_size=4, shuffle=False)
+    loader = DataLoader(dataset, batch_size=4, shuffle=False)
     mags = []
     with torch.no_grad():
         for i, batch in enumerate(loader):
             if i >= num_batches:
                 break
+            if isinstance(batch, (list, tuple)):
+                batch = batch[0]
             batch = batch.to(device)
             logits = model(batch)
             freq = torch.fft.fft(logits, dim=1)
@@ -59,8 +63,9 @@ def plot_comparison(args: argparse.Namespace) -> None:
     axes[0].set_title("Training Loss")
     axes[0].legend()
 
-    if args.fresh_model and args.distill_model:
-        dataset = DummyWikiDataset(seq_len=8)
+    if args.fresh_model and args.distill_model and args.data_path:
+        tokenizer = SimpleTokenizer.load(args.tokenizer_path)
+        dataset = TextFileDataset(args.data_path, tokenizer, seq_len=args.seq_len)
         fresh_model, _ = load_model(args.fresh_model)
         distill_model, _ = load_model(args.distill_model)
         fresh_fft = average_logit_spectrum(fresh_model, dataset)
@@ -85,6 +90,11 @@ def main() -> None:
     parser.add_argument("--distill-log", type=Path, default=Path("logs/distill_run.jsonl"))
     parser.add_argument("--fresh-model", type=Path, help="Path to fresh model for FFT analysis")
     parser.add_argument("--distill-model", type=Path, help="Path to distilled model for FFT analysis")
+    parser.add_argument("--data-path", type=Path, help="Path to text file for FFT analysis")
+    parser.add_argument(
+        "--tokenizer-path", type=Path, default=Path("tokenizer.json"), help="Tokenizer path"
+    )
+    parser.add_argument("--seq-len", type=int, default=8)
     args = parser.parse_args()
     plot_comparison(args)
     print("Saved training_comparison.png")

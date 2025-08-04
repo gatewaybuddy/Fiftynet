@@ -10,8 +10,9 @@ from torch.utils.data import DataLoader, Subset
 from transformers import AutoModelForCausalLM
 
 from model import FFTNet
-from scripts.train_fresh import DummyWikiDataset
+from fftnet.data import TextFileDataset
 from fftnet.utils.storage import load_model
+from tokenizer import SimpleTokenizer
 
 
 @torch.no_grad()
@@ -94,10 +95,15 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--seq-len", type=int, default=8)
     parser.add_argument("--teacher-model", help="Optional teacher model for similarity")
+    parser.add_argument("--data-path", required=True, help="Path to evaluation text file")
+    parser.add_argument(
+        "--tokenizer-path", default="tokenizer.json", help="Path to tokenizer"
+    )
     args = parser.parse_args()
 
     model, cfg = load_model(Path("weights") / args.model)
-    full_dataset = DummyWikiDataset(seq_len=args.seq_len)
+    tokenizer = SimpleTokenizer.load(args.tokenizer_path)
+    full_dataset = TextFileDataset(args.data_path, tokenizer, seq_len=args.seq_len)
     test_indices = range(max(0, len(full_dataset) - 20), len(full_dataset))
     test_dataset = Subset(full_dataset, list(test_indices))
 
