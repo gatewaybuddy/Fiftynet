@@ -60,6 +60,7 @@ before projecting back to token space.
 ```bash
 python scripts/train_fresh.py --data-path path/to/corpus.txt --epochs 1
 ```
+Set `--split-seed` to reproduce the train/validation split across runs.
 
 ### Inference
 
