@@ -3,8 +3,10 @@ import os
 import sys
 
 import matplotlib
-if not os.environ.get("DISPLAY"):
-    matplotlib.use("Agg")
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
 
 import torch
 
@@ -14,7 +16,9 @@ from fftnet.utils.visualization import plot_embedding_spectrum
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="FFTNet demo")
+    parser = argparse.ArgumentParser(
+        description="FFTNet demo. Saves spectrum when no display is available."
+    )
     parser.add_argument("--model", metavar="VERSION", help="Load model version", nargs="?")
     parser.add_argument(
         "--save-plot",
