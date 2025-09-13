@@ -7,10 +7,12 @@ import matplotlib
 if not os.environ.get("DISPLAY"):
     matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
 import torch
 
 from fftnet.utils import storage
 from fftnet.utils.config import build_model
+
 
 
 def plot_embedding_spectrum(embeddings: torch.Tensor, save_path: Optional[str] = None) -> None:

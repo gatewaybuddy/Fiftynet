@@ -1,35 +1,10 @@
 import argparse
-import os
-import sys
 from pathlib import Path
 
 import torch
 
-# Allow importing utility modules from the scripts directory
-sys.path.append(os.path.join(os.path.dirname(__file__), 'scripts'))
-
 from tokenizer import SimpleTokenizer
-try:
-    from main import plot_embedding_spectrum as fft_visualizer  # type: ignore
-except Exception:  # pragma: no cover
-    # Fallback visualizer if scripts/main.py is not available
-    import matplotlib.pyplot as plt
-
-    def fft_visualizer(embeddings: torch.Tensor) -> None:
-        """Plot average frequency magnitude across tokens in a sequence."""
-        if embeddings.ndim != 3:
-            raise ValueError("embeddings must be 3D [batch, seq_len, dim]")
-        with torch.no_grad():
-            freq = torch.fft.fft(embeddings, dim=1)
-            magnitude = freq.abs().mean(dim=(0, 2))
-        plt.figure()
-        plt.plot(torch.arange(magnitude.size(0)), magnitude.cpu())
-        plt.xlabel("Frequency index")
-        plt.ylabel("Magnitude")
-        plt.title("Average Frequency Spectrum")
-        plt.tight_layout()
-        plt.show()
-        plt.close()
+from fftnet.utils.visualization import plot_embedding_spectrum as fft_visualizer
 
 
 from model import FFTNet
