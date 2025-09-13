@@ -151,6 +151,12 @@ def main() -> None:
         help="Fraction of data reserved for validation",
     )
     parser.add_argument(
+        "--split-seed",
+        type=int,
+        default=42,
+        help="Random seed to reproduce train/val splits",
+    )
+    parser.add_argument(
         "--patience",
         type=int,
         default=0,
@@ -187,7 +193,10 @@ def main() -> None:
 
     val_size = int(len(dataset) * args.val_split)
     train_size = len(dataset) - val_size
-    train_ds, val_ds = random_split(dataset, [train_size, val_size])
+    generator = torch.Generator().manual_seed(args.split_seed)
+    train_ds, val_ds = random_split(
+        dataset, [train_size, val_size], generator=generator
+    )
 
     if args.checkpoint_path is None:
         args.checkpoint_path = Path("weights") / f"{args.save_name}_best"
