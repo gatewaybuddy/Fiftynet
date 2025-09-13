@@ -2,19 +2,26 @@
 
 from __future__ import annotations
 
-import torch
+from pathlib import Path
+from typing import Optional
+
 import matplotlib.pyplot as plt
+import torch
 
 __all__ = ["plot_embedding_spectrum"]
 
 
-def plot_embedding_spectrum(embeddings: torch.Tensor) -> None:
+def plot_embedding_spectrum(
+    embeddings: torch.Tensor, save_path: Optional[str | Path] = None
+) -> None:
     """Plot average frequency magnitude across tokens in a sequence.
 
     Parameters
     ----------
     embeddings:
         Tensor of shape ``(batch, seq_len, dim)`` representing token embeddings.
+    save_path:
+        If provided, save the plot to this path instead of displaying it.
     """
     if embeddings.ndim != 3:
         raise ValueError("embeddings must be 3D [batch, seq_len, dim]")
@@ -29,5 +36,8 @@ def plot_embedding_spectrum(embeddings: torch.Tensor) -> None:
     plt.ylabel("Magnitude")
     plt.title("Average Frequency Spectrum")
     plt.tight_layout()
-    plt.show()
+    if save_path:
+        plt.savefig(save_path)
+    else:
+        plt.show()
     plt.close()

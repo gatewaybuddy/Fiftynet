@@ -1,45 +1,16 @@
 import argparse
 import os
 import sys
-from typing import Optional
 
 import matplotlib
 if not os.environ.get("DISPLAY"):
     matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 
 import torch
 
 from fftnet.utils import storage
 from fftnet.utils.config import build_model
-
-
-
-def plot_embedding_spectrum(embeddings: torch.Tensor, save_path: Optional[str] = None) -> None:
-    """Plot average frequency magnitude across tokens in a sequence.
-
-    Args:
-        embeddings: Input embedding tensor of shape [batch, seq_len, dim].
-        save_path: If provided, write the plot to this path instead of showing.
-    """
-    if embeddings.ndim != 3:
-        raise ValueError("embeddings must be 3D [batch, seq_len, dim]")
-
-    with torch.no_grad():
-        freq = torch.fft.fft(embeddings, dim=1)
-        magnitude = freq.abs().mean(dim=(0, 2))
-
-    plt.figure()
-    plt.plot(torch.arange(magnitude.size(0)), magnitude.cpu())
-    plt.xlabel("Frequency index")
-    plt.ylabel("Magnitude")
-    plt.title("Average Frequency Spectrum")
-    plt.tight_layout()
-    if save_path:
-        plt.savefig(save_path)
-    else:
-        plt.show()
-    plt.close()
+from fftnet.utils.visualization import plot_embedding_spectrum
 
 
 def main() -> None:

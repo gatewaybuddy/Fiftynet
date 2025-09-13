@@ -4,7 +4,7 @@ from pathlib import Path
 import torch
 
 from tokenizer import SimpleTokenizer
-from fftnet.utils.visualization import plot_embedding_spectrum as fft_visualizer
+from fftnet.utils.visualization import plot_embedding_spectrum
 
 
 from model import FFTNet
@@ -68,7 +68,7 @@ def main() -> None:
             print(f"{word}: {val:.4f}")
     else:  # spectrum
         embeddings = model.embedding(generated)
-        fft_visualizer(embeddings)
+        plot_embedding_spectrum(embeddings)
 
 
 if __name__ == "__main__":
