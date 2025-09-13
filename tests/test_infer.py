@@ -10,7 +10,7 @@ import pytest
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from tokenizer import SimpleTokenizer
-from fftnet.utils.config import load_config, build_model_from_config
+from fftnet.utils.config import build_model_from_config
 from fftnet_infer import generate
 
 
@@ -26,8 +26,13 @@ def tiny_tokenizer(tmp_path):
 
 
 def _build_model(tokenizer: SimpleTokenizer):
-    cfg = load_config("config/fiftynet_config.json", "config/fiftynet_modules.yaml")
-    cfg["vocab_size"] = len(tokenizer)
+    cfg = {
+        "vocab_size": len(tokenizer),
+        "dim": 2,
+        "blocks": [
+            {"type": "FFTNetBlock", "name": "block_0"},
+        ],
+    }
     return build_model_from_config(cfg)
 
 
