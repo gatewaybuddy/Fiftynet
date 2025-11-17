@@ -1,4 +1,5 @@
 import argparse
+import math
 from pathlib import Path
 
 import matplotlib
@@ -69,8 +70,12 @@ def evaluate(model: FFTNet, dataset: torch.utils.data.Dataset, cfg: dict, args: 
             tloss = dist_loss_fn(logits, teach_logits.view(-1, cfg["vocab_size"]))
             teacher_loss += tloss.item() * targets.numel()
 
+    avg_loss = total_loss / count
+    perplexity = math.exp(avg_loss)
+
     results = {
-        "loss": total_loss / count,
+        "loss": avg_loss,
+        "perplexity": perplexity,
         "accuracy": correct / count,
     }
     if teacher is not None:
