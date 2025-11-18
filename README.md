@@ -57,16 +57,102 @@ before projecting back to token space.
 
 ### Train
 
+Basic training:
 ```bash
-python scripts/train_fresh.py --data-path path/to/corpus.txt --epochs 1
+python scripts/train_fresh.py --data-path path/to/corpus.txt --epochs 5
 ```
-Set `--split-seed` to reproduce the train/validation split across runs.
+
+**Production training with all features:**
+```bash
+python scripts/train_fresh.py \
+  --data-path corpus.txt \
+  --epochs 10 \
+  --batch-size 32 \
+  --lr 0.001 \
+  --scheduler onecycle \
+  --grad-clip 1.0 \
+  --checkpoint-dir checkpoints/run1 \
+  --checkpoint-every 500 \
+  --mixed-precision \
+  --patience 3
+```
+
+**Resume from checkpoint:**
+```bash
+python scripts/train_fresh.py \
+  --data-path corpus.txt \
+  --resume-from checkpoints/run1/latest.pt
+```
 
 ### Inference
 
+**Basic generation:**
 ```bash
 python fftnet_infer.py --model trained --prompt "the quick"
 ```
+
+**Advanced sampling for better quality:**
+```bash
+python fftnet_infer.py \
+  --model trained \
+  --prompt "Once upon a time" \
+  --max-new-tokens 50 \
+  --temperature 0.9 \
+  --top-p 0.95
+```
+
+### Evaluation
+
+```bash
+python scripts/evaluate.py \
+  --model trained \
+  --data-path test.txt \
+  --batch-size 16
+```
+
+### REST API
+
+**Start the API server:**
+```bash
+python api/server.py
+# or
+uvicorn api.server:app --host 0.0.0.0 --port 8000
+```
+
+**Using Docker:**
+```bash
+docker-compose up -d
+```
+
+See `api/README.md` for complete API documentation.
+
+## New Features (Production-Ready)
+
+### Training Enhancements
+- ✅ **Checkpointing**: Save/resume training with full state
+- ✅ **Learning rate scheduling**: Cosine, OneCycle, Plateau schedulers
+- ✅ **Gradient clipping**: Prevent gradient explosions
+- ✅ **Mixed precision training**: Faster training on modern GPUs
+- ✅ **Early stopping**: Automatic stopping with patience
+
+### Inference Improvements
+- ✅ **Advanced sampling**: Temperature, top-k, nucleus (top-p)
+- ✅ **Flexible generation**: Multiple sampling strategies
+- ✅ **Deterministic option**: Greedy decoding with temperature=0
+
+### Evaluation & Metrics
+- ✅ **Perplexity calculation**: Standard language modeling metric
+- ✅ **Frequency spectrum analysis**: Visualize model behavior
+- ✅ **Teacher-student similarity**: For distillation evaluation
+
+### Deployment
+- ✅ **REST API**: Production-ready FastAPI server
+- ✅ **Docker support**: Easy containerized deployment
+- ✅ **OpenAPI docs**: Interactive API documentation at `/docs`
+
+### Testing
+- ✅ **Comprehensive tests**: Unit and integration tests
+- ✅ **CI/CD ready**: Automated testing workflows
 
 ## Resources
 
@@ -76,8 +162,11 @@ python fftnet_infer.py --model trained --prompt "the quick"
   `TextFileDataset` in `fftnet/data.py`.
 - **Scripts**: Training, evaluation, and model management utilities live in
   the `scripts/` directory.
+- **API Documentation**: See `api/README.md` for REST API usage
+- **Testing**: Run `pytest tests/` for unit tests, `pytest tests/integration/` for integration tests
 
-See [ROADMAP.md](ROADMAP.md) for planned milestones and [TASKS.md](TASKS.md) for current progress.
+See [ROADMAP.md](ROADMAP.md) for planned milestones, [TASKS.md](TASKS.md) for current progress,
+and [EXTENSION_PLAN.md](EXTENSION_PLAN.md) for future enhancements.
 
 ---
 
